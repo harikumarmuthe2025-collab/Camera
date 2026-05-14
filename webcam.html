@@ -1,0 +1,3085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Live Attendance Camera — High Quality WebRTC</title>
+
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --surface-blue: #f3f7ff;
+
+      --text: #111827;
+      --text-soft: #475569;
+      --text-muted: #94a3b8;
+
+      --border: rgba(15, 23, 42, 0.08);
+      --border-strong: rgba(15, 23, 42, 0.14);
+
+      --blue: #2563eb;
+      --blue-dark: #1d4ed8;
+      --blue-soft: #dbeafe;
+
+      --green: #16a34a;
+      --green-soft: #dcfce7;
+
+      --red: #dc2626;
+      --red-dark: #b91c1c;
+      --red-soft: #fee2e2;
+
+      --amber: #d97706;
+      --amber-soft: #fef3c7;
+
+      --gray-soft: #f1f5f9;
+
+      --radius-sm: 12px;
+      --radius-md: 18px;
+      --radius-lg: 26px;
+
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+      --shadow-lg: 0 20px 60px rgba(15, 23, 42, 0.12), 0 4px 16px rgba(15, 23, 42, 0.06);
+
+      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+
+      --transition: 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    html {
+      font-size: 15px;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body {
+      min-height: 100dvh;
+      font-family: var(--font);
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 34rem),
+        radial-gradient(circle at top right, rgba(22, 163, 74, 0.08), transparent 30rem),
+        linear-gradient(180deg, #f8fbff 0%, var(--bg) 46%, #f8fafc 100%);
+    }
+
+    button {
+      font: inherit;
+      border: 0;
+      outline: 0;
+    }
+
+    button:focus-visible {
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
+    }
+
+    .app-shell {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      min-height: 72px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
+      flex: 0 0 auto;
+    }
+
+    .brand-mark svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .brand-title {
+      font-weight: 850;
+      letter-spacing: -0.035em;
+      line-height: 1;
+      font-size: 1.08rem;
+      color: var(--text);
+    }
+
+    .brand-subtitle {
+      margin-top: 4px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .topbar-spacer {
+      flex: 1;
+    }
+
+    .topbar-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .clock-pill,
+    .state-pill {
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 13px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.76);
+      box-shadow: var(--shadow-sm);
+      font-size: 0.8rem;
+      color: var(--text-soft);
+      white-space: nowrap;
+    }
+
+    .clock-pill {
+      font-family: var(--mono);
+      letter-spacing: -0.02em;
+    }
+
+    .state-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--text-muted);
+    }
+
+    .state-pill.ready {
+      color: var(--green);
+      background: var(--green-soft);
+      border-color: rgba(22, 163, 74, 0.14);
+    }
+
+    .state-pill.ready .state-dot {
+      background: var(--green);
+    }
+
+    .state-pill.connecting {
+      color: var(--amber);
+      background: var(--amber-soft);
+      border-color: rgba(217, 119, 6, 0.14);
+    }
+
+    .state-pill.connecting .state-dot {
+      background: var(--amber);
+      animation: pulse 1.2s infinite;
+    }
+
+    .state-pill.live {
+      color: var(--red);
+      background: var(--red-soft);
+      border-color: rgba(220, 38, 38, 0.16);
+    }
+
+    .state-pill.live .state-dot {
+      background: var(--red);
+      animation: blink 1s infinite;
+    }
+
+    .state-pill.error {
+      color: var(--red);
+      background: var(--red-soft);
+      border-color: rgba(220, 38, 38, 0.16);
+    }
+
+    .state-pill.error .state-dot {
+      background: var(--red);
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.25; transform: scale(0.86); }
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.35); }
+      70% { box-shadow: 0 0 0 8px rgba(217, 119, 6, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+    }
+
+    .main {
+      width: 100%;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 28px;
+      flex: 1;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    .hero-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--blue);
+      font-size: 0.76rem;
+      font-weight: 800;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 12px;
+    }
+
+    .hero h1 {
+      font-size: clamp(1.8rem, 4vw, 3.25rem);
+      line-height: 0.98;
+      letter-spacing: -0.065em;
+      color: #0f172a;
+    }
+
+    .hero p {
+      max-width: 760px;
+      margin-top: 12px;
+      line-height: 1.65;
+      color: var(--text-soft);
+      font-size: 0.98rem;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .layout-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.75fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.90);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      transition: box-shadow var(--transition), transform var(--transition), border-color var(--transition);
+    }
+
+    .card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: rgba(15, 23, 42, 0.11);
+    }
+
+    .card-header {
+      padding: 18px 20px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .card-title {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-weight: 850;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .card-body {
+      padding: 18px 20px 20px;
+    }
+
+    .video-card .card-body {
+      padding-bottom: 0;
+    }
+
+    .video-shell {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9.5;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 20%, rgba(37, 99, 235, 0.18), transparent 32rem),
+        linear-gradient(145deg, #0b1120, #020617);
+      display: grid;
+      place-items: center;
+      isolation: isolate;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #020617;
+      display: block;
+      transform: scaleX(-1);
+    }
+
+    video.back-camera {
+      transform: scaleX(1);
+    }
+
+    .video-idle {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at center, rgba(255, 255, 255, 0.06), transparent 22rem),
+        rgba(2, 6, 23, 0.96);
+      color: rgba(255, 255, 255, 0.76);
+      text-align: center;
+      padding: 26px;
+    }
+
+    .video-idle.hidden {
+      display: none;
+    }
+
+    .idle-icon {
+      width: 74px;
+      height: 74px;
+      margin: 0 auto 16px;
+      border-radius: 24px;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+    }
+
+    .idle-icon svg {
+      width: 34px;
+      height: 34px;
+      opacity: 0.78;
+    }
+
+    .video-idle strong {
+      display: block;
+      font-size: 1rem;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .video-idle span {
+      display: block;
+      max-width: 380px;
+      color: rgba(255, 255, 255, 0.48);
+      line-height: 1.55;
+      font-size: 0.88rem;
+    }
+
+    .live-watermark {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(220, 38, 38, 0.92);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 950;
+      letter-spacing: 0.11em;
+      box-shadow: 0 12px 26px rgba(220, 38, 38, 0.32);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .live-watermark.visible {
+      display: inline-flex;
+    }
+
+    .live-watermark-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #fff;
+      animation: blink 1s infinite;
+    }
+
+    .video-bottom-bar {
+      padding: 13px 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: var(--surface-soft);
+      border-top: 1px solid var(--border);
+    }
+
+    .camera-status-line {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-soft);
+      font-size: 0.84rem;
+    }
+
+    .mini-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 99px;
+      background: var(--text-muted);
+      flex: 0 0 auto;
+    }
+
+    .mini-dot.ready {
+      background: var(--green);
+    }
+
+    .mini-dot.live {
+      background: var(--red);
+      animation: blink 1s infinite;
+    }
+
+    .mini-dot.warn {
+      background: var(--amber);
+    }
+
+    .camera-label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      font-size: 0.76rem;
+      text-align: right;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .section-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      margin: 2px 0 9px;
+    }
+
+    .section-label:not(:first-child) {
+      margin-top: 18px;
+    }
+
+    .btn {
+      height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 14px;
+      padding: 0 16px;
+      cursor: pointer;
+      font-weight: 780;
+      font-size: 0.88rem;
+      letter-spacing: -0.02em;
+      transition: transform var(--transition), box-shadow var(--transition), background var(--transition), border-color var(--transition), opacity var(--transition);
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(0) scale(0.985);
+    }
+
+    .btn:disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+      box-shadow: none !important;
+      transform: none !important;
+    }
+
+    .btn-primary {
+      color: #fff;
+      background: var(--blue);
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--blue-dark);
+      box-shadow: 0 16px 32px rgba(37, 99, 235, 0.28);
+    }
+
+    .btn-live {
+      color: #fff;
+      background: var(--green);
+      box-shadow: 0 12px 24px rgba(22, 163, 74, 0.22);
+    }
+
+    .btn-live:hover:not(:disabled) {
+      background: #15803d;
+      box-shadow: 0 16px 32px rgba(22, 163, 74, 0.27);
+    }
+
+    .btn-danger {
+      color: #fff;
+      background: var(--red);
+      box-shadow: 0 12px 24px rgba(220, 38, 38, 0.22);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: var(--red-dark);
+      box-shadow: 0 16px 32px rgba(220, 38, 38, 0.27);
+    }
+
+    .btn-neutral {
+      color: var(--text);
+      background: #fff;
+      border: 1px solid var(--border-strong);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn-neutral:hover:not(:disabled) {
+      background: var(--surface-soft);
+      border-color: rgba(15, 23, 42, 0.18);
+      box-shadow: var(--shadow-md);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .badge.idle {
+      background: var(--gray-soft);
+      color: var(--text-muted);
+    }
+
+    .badge.ready {
+      background: var(--green-soft);
+      color: var(--green);
+    }
+
+    .badge.live {
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .badge.connecting {
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+
+    .badge.error {
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .info-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.86rem;
+    }
+
+    .info-row:first-child {
+      padding-top: 0;
+    }
+
+    .info-row:last-child {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .info-key {
+      color: var(--text-muted);
+      font-weight: 650;
+      flex: 0 0 auto;
+    }
+
+    .info-value {
+      min-width: 0;
+      text-align: right;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      word-break: break-word;
+    }
+
+    .info-value.blue {
+      color: var(--blue);
+      font-weight: 850;
+    }
+
+    .info-value.green {
+      color: var(--green);
+    }
+
+    .info-value.red {
+      color: var(--red);
+    }
+
+    .info-value.amber {
+      color: var(--amber);
+    }
+
+    .info-value.muted {
+      color: var(--text-muted);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stat-box {
+      min-width: 0;
+      padding: 14px;
+      border-radius: 18px;
+      background: var(--surface-soft);
+      border: 1px solid var(--border);
+    }
+
+    .stat-value {
+      font-size: 1.42rem;
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: -0.06em;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stat-label {
+      margin-top: 6px;
+      color: var(--text-muted);
+      font-size: 0.74rem;
+      font-weight: 650;
+    }
+
+    .alert {
+      display: none;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 14px 15px;
+      border-radius: 18px;
+      font-size: 0.88rem;
+      line-height: 1.55;
+      border: 1px solid transparent;
+    }
+
+    .alert.visible {
+      display: flex;
+    }
+
+    .alert.info {
+      background: var(--blue-soft);
+      color: #1e40af;
+      border-color: rgba(37, 99, 235, 0.14);
+    }
+
+    .alert.warn {
+      background: var(--amber-soft);
+      color: #92400e;
+      border-color: rgba(217, 119, 6, 0.14);
+    }
+
+    .alert.error {
+      background: var(--red-soft);
+      color: #991b1b;
+      border-color: rgba(220, 38, 38, 0.14);
+    }
+
+    .log-list {
+      max-height: 310px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-right: 3px;
+    }
+
+    .log-empty {
+      color: var(--text-muted);
+      text-align: center;
+      padding: 26px 10px;
+      font-size: 0.86rem;
+    }
+
+    .log-item {
+      display: grid;
+      grid-template-columns: auto auto 1fr;
+      align-items: start;
+      gap: 9px;
+      padding: 9px 10px;
+      border-radius: 14px;
+      color: var(--text-soft);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      animation: logIn 180ms ease;
+    }
+
+    .log-item:hover {
+      background: var(--surface-soft);
+    }
+
+    @keyframes logIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .log-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      margin-top: 5px;
+      background: var(--blue);
+    }
+
+    .log-dot.success {
+      background: var(--green);
+    }
+
+    .log-dot.warn {
+      background: var(--amber);
+    }
+
+    .log-dot.error {
+      background: var(--red);
+    }
+
+    .log-time {
+      color: var(--text-muted);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      white-space: nowrap;
+    }
+
+    .toast-container {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      min-width: 260px;
+      max-width: min(380px, calc(100vw - 32px));
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-radius: 18px;
+      padding: 13px 15px;
+      color: #fff;
+      background: #0f172a;
+      box-shadow: var(--shadow-lg);
+      font-size: 0.86rem;
+      font-weight: 650;
+      pointer-events: auto;
+      animation: toastIn 230ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .toast.success {
+      background: #15803d;
+    }
+
+    .toast.warn {
+      background: #b45309;
+    }
+
+    .toast.error {
+      background: #b91c1c;
+    }
+
+    .toast.out {
+      animation: toastOut 200ms ease forwards;
+    }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes toastOut {
+      to { opacity: 0; transform: translateY(8px) scale(0.98); }
+    }
+
+    .compact-note {
+      margin-top: 12px;
+      padding: 12px;
+      background: var(--surface-blue);
+      border: 1px solid rgba(37, 99, 235, 0.12);
+      border-radius: 16px;
+      color: #1e3a8a;
+      line-height: 1.55;
+      font-size: 0.82rem;
+    }
+
+    .footer-note {
+      margin-top: 20px;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      line-height: 1.55;
+      text-align: center;
+    }
+
+    @media (max-width: 1060px) {
+      .layout-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .right-column {
+        order: -1;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .topbar {
+        min-height: 70px;
+        padding: 14px 16px;
+        align-items: flex-start;
+      }
+
+      .brand-subtitle {
+        white-space: normal;
+      }
+
+      .topbar-meta {
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+      }
+
+      .clock-pill,
+      .state-pill {
+        height: 32px;
+        font-size: 0.74rem;
+        padding: 0 10px;
+      }
+
+      .main {
+        padding: 18px 14px 24px;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+
+      .hero-actions {
+        justify-content: flex-start;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .button-row {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .btn {
+        width: 100%;
+      }
+
+      .video-bottom-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .camera-label {
+        text-align: left;
+      }
+
+      .toast-container {
+        right: 14px;
+        bottom: 14px;
+      }
+    }
+
+    @media (max-width: 460px) {
+      .brand-mark {
+        width: 38px;
+        height: 38px;
+        border-radius: 14px;
+      }
+
+      .brand-title {
+        font-size: 0.96rem;
+      }
+
+      .brand-subtitle {
+        font-size: 0.72rem;
+      }
+
+      .card-header,
+      .card-body {
+        padding-left: 15px;
+        padding-right: 15px;
+      }
+
+      .video-card .card-body {
+        padding-bottom: 0;
+      }
+
+      .info-row {
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .info-value {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M4 8.75C4 7.784 4.784 7 5.75 7h2.28c.418 0 .794-.256.948-.645l.39-.99A1.02 1.02 0 0 1 10.316 5h3.368c.418 0 .794.256.948.645l.39.99c.154.389.53.645.948.645h2.28c.966 0 1.75.784 1.75 1.75v7.72c0 .966-.784 1.75-1.75 1.75H5.75A1.75 1.75 0 0 1 4 16.75v-8Z" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z" stroke="currentColor" stroke-width="1.8"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">Live Attendance Camera</div>
+          <div class="brand-subtitle">High-quality WebRTC publisher · 1080p face attendance</div>
+        </div>
+      </div>
+
+      <div class="topbar-spacer"></div>
+
+      <div class="topbar-meta">
+        <div class="clock-pill" id="clockText">--:--:--</div>
+        <div class="state-pill" id="topStatePill">
+          <span class="state-dot"></span>
+          <span id="topStateText">Camera Off</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="hero">
+        <div>
+          <div class="hero-kicker">
+            <span>●</span>
+            High quality face attendance stream
+          </div>
+          <h1>Enterprise live camera attendance.</h1>
+          <p>
+            This page publishes a continuous high-quality WebRTC camera stream for face attendance.
+            It requests 1920×1080 video, targets 30 FPS, limits sender bitrate to 4.5 Mbps,
+            and sends only signaling plus secure attendance metadata to your backend.
+          </p>
+        </div>
+
+        <div class="hero-actions">
+          <button class="btn btn-primary" id="btnStartCamera" type="button">
+            <span>▶</span>
+            Start Camera
+          </button>
+          <button class="btn btn-live" id="btnGoLive" type="button" disabled>
+            <span>●</span>
+            Go Live
+          </button>
+          <button class="btn btn-danger" id="btnStopLive" type="button" disabled>
+            <span>■</span>
+            Stop Live
+          </button>
+        </div>
+      </section>
+
+      <section class="layout-grid">
+        <div class="stack">
+          <div class="card video-card">
+            <div class="card-header">
+              <div class="card-title">Live local preview</div>
+              <div class="badge idle" id="cameraBadge">Camera Off</div>
+            </div>
+
+            <div class="card-body">
+              <div class="video-shell">
+                <video id="localVideo" autoplay muted playsinline></video>
+
+                <div class="video-idle" id="videoIdleOverlay">
+                  <div>
+                    <div class="idle-icon">
+                      <svg viewBox="0 0 24 24" fill="none">
+                        <path d="M4 8.75C4 7.784 4.784 7 5.75 7h2.28c.418 0 .794-.256.948-.645l.39-.99A1.02 1.02 0 0 1 10.316 5h3.368c.418 0 .794.256.948.645l.39.99c.154.389.53.645.948.645h2.28c.966 0 1.75.784 1.75 1.75v7.72c0 .966-.784 1.75-1.75 1.75H5.75A1.75 1.75 0 0 1 4 16.75v-8Z" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z" stroke="currentColor" stroke-width="1.8"/>
+                      </svg>
+                    </div>
+                    <strong>Camera preview is not active</strong>
+                    <span>Click Start Camera and allow permission. Camera access requires HTTPS or localhost.</span>
+                  </div>
+                </div>
+
+                <div class="live-watermark" id="liveWatermark">
+                  <span class="live-watermark-dot"></span>
+                  LIVE
+                </div>
+              </div>
+            </div>
+
+            <div class="video-bottom-bar">
+              <div class="camera-status-line">
+                <span class="mini-dot" id="cameraMiniDot"></span>
+                <span id="cameraStatusText">Camera Off</span>
+              </div>
+              <div class="camera-label" id="cameraLabelText">No camera selected</div>
+            </div>
+          </div>
+
+          <div class="alert" id="alertBox"></div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Controls</div>
+            </div>
+
+            <div class="card-body">
+              <div class="section-label">Camera</div>
+              <div class="button-row">
+                <button class="btn btn-primary" id="btnStartCamera2" type="button">
+                  <span>▶</span>
+                  Start Camera
+                </button>
+                <button class="btn btn-neutral" id="btnSwitchCamera" type="button" disabled>
+                  <span>⇄</span>
+                  Switch Camera
+                </button>
+              </div>
+
+              <div class="section-label">Livestream</div>
+              <div class="button-row">
+                <button class="btn btn-live" id="btnGoLive2" type="button" disabled>
+                  <span>●</span>
+                  Go Live
+                </button>
+                <button class="btn btn-danger" id="btnStopLive2" type="button" disabled>
+                  <span>■</span>
+                  Stop Live
+                </button>
+              </div>
+
+              <div class="section-label">Session & location</div>
+              <div class="button-row">
+                <button class="btn btn-neutral" id="btnRefreshLocation" type="button">
+                  <span>⌖</span>
+                  Refresh Location
+                </button>
+                <button class="btn btn-neutral" id="btnResetSession" type="button">
+                  <span>↺</span>
+                  Reset Session
+                </button>
+              </div>
+
+              <div class="compact-note">
+                This is true WebRTC livestreaming. It does not use MediaRecorder and does not upload video blobs.
+                Mobile camera access is requested safely first, then upgraded to the best available high-quality face-detection video.
+                PHP can manage sessions, users, metadata, and attendance records, but a WebRTC receiver/SFU/media server
+                should handle the real-time video path.
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Activity log</div>
+              <button class="btn btn-neutral" id="btnClearLog" type="button" style="height:32px;padding:0 12px;font-size:.76rem;">
+                Clear
+              </button>
+            </div>
+
+            <div class="card-body">
+              <div class="log-list" id="activityLog">
+                <div class="log-empty">No activity yet.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="stack right-column">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Session</div>
+              <div class="badge idle" id="sessionBadge">Idle</div>
+            </div>
+
+            <div class="card-body">
+              <div class="info-list">
+                <div class="info-row">
+                  <div class="info-key">Session ID</div>
+                  <div class="info-value blue" id="sessionIdText">—</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">Viewer Room</div>
+                  <div class="info-value" id="roomIdText">—</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">Started</div>
+                  <div class="info-value muted" id="liveStartedText">—</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">Last Metadata</div>
+                  <div class="info-value muted" id="lastMetadataText">—</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">Facing Mode</div>
+                  <div class="info-value" id="facingModeText">user</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">High quality video</div>
+              <div class="badge ready" id="videoQualityBadge">1080p</div>
+            </div>
+
+            <div class="card-body">
+              <div class="info-list">
+                <div class="info-row">
+                  <div class="info-key">Requested</div>
+                  <div class="info-value green" id="requestedQualityText">1920×1080 / 30 FPS</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">Actual Camera</div>
+                  <div class="info-value" id="actualVideoText">—</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">Max Bitrate</div>
+                  <div class="info-value blue" id="targetBitrateText">4500 kbps</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">Approx Usage</div>
+                  <div class="info-value amber" id="estimateDataText">33.75 MB/min</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Location</div>
+              <div class="badge idle" id="locationBadge">Pending</div>
+            </div>
+
+            <div class="card-body">
+              <div class="info-list">
+                <div class="info-row">
+                  <div class="info-key">Latitude</div>
+                  <div class="info-value" id="latitudeText">—</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">Longitude</div>
+                  <div class="info-value" id="longitudeText">—</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">Accuracy</div>
+                  <div class="info-value" id="accuracyText">—</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">Captured</div>
+                  <div class="info-value muted" id="locationTimeText">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">WebRTC status</div>
+              <div class="badge idle" id="webrtcBadge">Idle</div>
+            </div>
+
+            <div class="card-body">
+              <div class="info-list">
+                <div class="info-row">
+                  <div class="info-key">Connection</div>
+                  <div class="info-value" id="connectionStateText">idle</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">ICE</div>
+                  <div class="info-value" id="iceStateText">new</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">Signaling</div>
+                  <div class="info-value" id="signalingStateText">closed</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-key">Socket</div>
+                  <div class="info-value" id="socketStateText">closed</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Connection quality</div>
+              <div class="badge idle" id="qualityBadge">Waiting</div>
+            </div>
+
+            <div class="card-body">
+              <div class="stats-grid">
+                <div class="stat-box">
+                  <div class="stat-value" id="bitrateText">0</div>
+                  <div class="stat-label">kbps sent</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-value" id="packetsText">0</div>
+                  <div class="stat-label">packets sent</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-value" id="framesText">0</div>
+                  <div class="stat-label">frames encoded</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-value" id="uptimeText">0s</div>
+                  <div class="stat-label">live uptime</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <div class="footer-note">
+        Backend required: session APIs, WebSocket signaling server, authentication, database storage, and a WebRTC receiver/media server path.
+      </div>
+    </main>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    /*
+      HIGH QUALITY LIVE ATTENDANCE CAMERA — TRUE WEBRTC FRONTEND
+
+      Backend contract:
+      - This frontend requires a real WebSocket signaling server.
+      - This frontend requires backend session APIs:
+          POST /api/attendance/session/start
+          POST /api/attendance/session/stop
+          POST /api/attendance/session/metadata
+      - A PHP backend can manage sessions, authentication, users, database records,
+        attendance records, location metadata, and audit logs.
+      - PHP alone should not be used as the real-time media relay.
+      - For real video relay / AI frame extraction, use a WebRTC media server, SFU,
+        direct peer-to-peer viewer, or WebRTC receiver connected to your AI service.
+      - This file does not use MediaRecorder for the main livestream.
+      - This file does not fake livestreaming by uploading video blobs.
+    */
+
+    const SESSION_START_URL = "/api/attendance/session/start";
+    const SESSION_STOP_URL = "/api/attendance/session/stop";
+    const SESSION_METADATA_URL = "/api/attendance/session/metadata";
+
+    const SIGNALING_URL = "wss://your-domain.com/ws/attendance-signaling";
+
+    const RTC_CONFIG = {
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" }
+
+        /*
+          Add TURN in production:
+
+          {
+            urls: "turn:turn.your-domain.com:3478",
+            username: "TURN_USERNAME",
+            credential: "TURN_PASSWORD"
+          }
+        */
+      ]
+    };
+
+    const VIDEO_PROFILE = {
+      label: "High Quality Face Attendance",
+      width: 1920,
+      height: 1080,
+      idealFrameRate: 30,
+      maxFrameRate: 30,
+      maxBitrate: 4500000,
+      maxBitrateKbps: 4500,
+      estimatedMBPerMinute: 33.75
+    };
+
+    const AppState = {
+      localStream: null,
+      peerConnection: null,
+      signalingSocket: null,
+      isCameraReady: false,
+      isLive: false,
+      sessionId: "",
+      roomId: "",
+      selectedFacingMode: "user",
+      location: null,
+      connectionState: "idle",
+      iceConnectionState: "new",
+      cameraLabel: "",
+      liveStartedAt: null,
+      lastMetadataSentAt: null,
+      metadataTimer: null,
+
+      actualVideoSettings: null,
+      pendingRemoteCandidates: [],
+
+      stats: {
+        timer: null,
+        previousBytesSent: 0,
+        previousStatsAt: 0,
+        bitrateKbps: 0,
+        packetsSent: 0,
+        framesEncoded: 0
+      }
+    };
+
+    const DOM = {};
+
+    function $(id) {
+      return document.getElementById(id);
+    }
+
+    function init() {
+      cacheDom();
+      bindEvents();
+      updateClock();
+
+      setInterval(updateClock, 1000);
+
+      updateUI();
+      addLog("System initialized. Start camera to begin.", "info");
+
+      if (!window.isSecureContext) {
+        showAlert(
+          "Camera access requires HTTPS or localhost. This page may not work correctly on plain HTTP.",
+          "warn"
+        );
+      }
+
+      window.addEventListener("beforeunload", function () {
+        if (AppState.isLive) {
+          try {
+            sendSignal({
+              type: "stop",
+              session_id: AppState.sessionId
+            });
+          } catch (error) {
+            console.warn(error);
+          }
+        }
+      });
+    }
+
+    function cacheDom() {
+      DOM.clockText = $("clockText");
+      DOM.topStatePill = $("topStatePill");
+      DOM.topStateText = $("topStateText");
+
+      DOM.localVideo = $("localVideo");
+      DOM.videoIdleOverlay = $("videoIdleOverlay");
+      DOM.liveWatermark = $("liveWatermark");
+
+      DOM.cameraBadge = $("cameraBadge");
+      DOM.cameraMiniDot = $("cameraMiniDot");
+      DOM.cameraStatusText = $("cameraStatusText");
+      DOM.cameraLabelText = $("cameraLabelText");
+
+      DOM.btnStartCamera = $("btnStartCamera");
+      DOM.btnStartCamera2 = $("btnStartCamera2");
+      DOM.btnGoLive = $("btnGoLive");
+      DOM.btnGoLive2 = $("btnGoLive2");
+      DOM.btnStopLive = $("btnStopLive");
+      DOM.btnStopLive2 = $("btnStopLive2");
+      DOM.btnSwitchCamera = $("btnSwitchCamera");
+      DOM.btnRefreshLocation = $("btnRefreshLocation");
+      DOM.btnResetSession = $("btnResetSession");
+      DOM.btnClearLog = $("btnClearLog");
+
+      DOM.alertBox = $("alertBox");
+      DOM.activityLog = $("activityLog");
+      DOM.toastContainer = $("toastContainer");
+
+      DOM.sessionBadge = $("sessionBadge");
+      DOM.sessionIdText = $("sessionIdText");
+      DOM.roomIdText = $("roomIdText");
+      DOM.liveStartedText = $("liveStartedText");
+      DOM.lastMetadataText = $("lastMetadataText");
+      DOM.facingModeText = $("facingModeText");
+
+      DOM.videoQualityBadge = $("videoQualityBadge");
+      DOM.requestedQualityText = $("requestedQualityText");
+      DOM.actualVideoText = $("actualVideoText");
+      DOM.targetBitrateText = $("targetBitrateText");
+      DOM.estimateDataText = $("estimateDataText");
+
+      DOM.locationBadge = $("locationBadge");
+      DOM.latitudeText = $("latitudeText");
+      DOM.longitudeText = $("longitudeText");
+      DOM.accuracyText = $("accuracyText");
+      DOM.locationTimeText = $("locationTimeText");
+
+      DOM.webrtcBadge = $("webrtcBadge");
+      DOM.connectionStateText = $("connectionStateText");
+      DOM.iceStateText = $("iceStateText");
+      DOM.signalingStateText = $("signalingStateText");
+      DOM.socketStateText = $("socketStateText");
+
+      DOM.qualityBadge = $("qualityBadge");
+      DOM.bitrateText = $("bitrateText");
+      DOM.packetsText = $("packetsText");
+      DOM.framesText = $("framesText");
+      DOM.uptimeText = $("uptimeText");
+    }
+
+    function bindEvents() {
+      DOM.btnStartCamera.addEventListener("click", startCamera);
+      DOM.btnStartCamera2.addEventListener("click", startCamera);
+
+      DOM.btnGoLive.addEventListener("click", startLive);
+      DOM.btnGoLive2.addEventListener("click", startLive);
+
+      DOM.btnStopLive.addEventListener("click", stopLive);
+      DOM.btnStopLive2.addEventListener("click", stopLive);
+
+      DOM.btnSwitchCamera.addEventListener("click", switchCamera);
+
+      DOM.btnRefreshLocation.addEventListener("click", function () {
+        refreshLocation(false);
+      });
+
+      DOM.btnResetSession.addEventListener("click", resetSession);
+
+      DOM.btnClearLog.addEventListener("click", function () {
+        DOM.activityLog.innerHTML = '<div class="log-empty">No activity yet.</div>';
+      });
+    }
+
+    async function startCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        AppState.connectionState = "camera-not-supported";
+        showAlert("This browser does not support camera access.", "error");
+        showToast("Camera is not supported in this browser.", "error");
+        addLog("Camera API is not supported.", "error");
+        updateUI();
+        return;
+      }
+
+      if (!window.isSecureContext) {
+        AppState.connectionState = "permission-denied";
+        showAlert(
+          "Camera access on mobile requires HTTPS or localhost. Open this page using https://your-domain.com, not plain HTTP or a LAN IP URL.",
+          "error"
+        );
+        showToast("Use HTTPS to access camera.", "error");
+        addLog("Blocked: camera access requires a secure context on mobile browsers.", "error");
+        updateUI();
+        return;
+      }
+
+      if (AppState.isCameraReady) {
+        showToast("Camera is already ready.", "info");
+        return;
+      }
+
+      AppState.connectionState = "camera-starting";
+      updateUI();
+      clearAlert();
+      addLog("Requesting mobile-safe camera permission...", "info");
+
+      try {
+        const permissionState = await getCameraPermissionState();
+
+        if (permissionState === "denied") {
+          throw createNamedError(
+            "NotAllowedError",
+            "Camera permission is already blocked for this site. Allow camera from browser site settings, then reload."
+          );
+        }
+
+        const stream = await requestCameraStreamWithFallback(AppState.selectedFacingMode);
+        await attachLocalStream(stream);
+
+        AppState.isCameraReady = true;
+        AppState.connectionState = "camera-ready";
+
+        addLog("Camera permission granted: " + (AppState.cameraLabel || "Unknown camera"), "success");
+
+        await upgradeCameraQualityIfPossible();
+
+        addLog(
+          "Face detection video target: 1920×1080 / " +
+          VIDEO_PROFILE.idealFrameRate +
+          " FPS / " +
+          VIDEO_PROFILE.maxBitrateKbps +
+          " kbps WebRTC target.",
+          "info"
+        );
+
+        showToast("High-quality camera is ready.", "success");
+        updateUI();
+        refreshLocation(true);
+      } catch (error) {
+        await handleCameraError(error);
+      }
+    }
+
+    function stopCamera() {
+      if (AppState.isLive) {
+        showToast("Stop live streaming before turning off the camera.", "warn");
+        return;
+      }
+
+      if (AppState.localStream) {
+        AppState.localStream.getTracks().forEach(function (track) {
+          track.stop();
+        });
+      }
+
+      AppState.localStream = null;
+      AppState.isCameraReady = false;
+      AppState.cameraLabel = "";
+      AppState.actualVideoSettings = null;
+      AppState.connectionState = "idle";
+
+      DOM.localVideo.srcObject = null;
+      DOM.videoIdleOverlay.classList.remove("hidden");
+
+      addLog("Camera stopped.", "warn");
+      updateUI();
+    }
+
+    async function switchCamera() {
+      const nextFacingMode = AppState.selectedFacingMode === "user" ? "environment" : "user";
+
+      if (!window.isSecureContext) {
+        showAlert("Camera switching also requires HTTPS or localhost on mobile browsers.", "error");
+        showToast("Use HTTPS to switch camera.", "error");
+        return;
+      }
+
+      if (!AppState.isCameraReady) {
+        AppState.selectedFacingMode = nextFacingMode;
+        updateUI();
+        await startCamera();
+        return;
+      }
+
+      addLog(
+        AppState.isLive
+          ? "Switching camera while live using WebRTC replaceTrack..."
+          : "Switching camera...",
+        "info"
+      );
+
+      try {
+        const newStream = await requestCameraStreamWithFallback(nextFacingMode);
+        const newTrack = newStream.getVideoTracks()[0];
+
+        if (!newTrack) {
+          throw new Error("No video track found on selected camera.");
+        }
+
+        if (AppState.isLive && AppState.peerConnection) {
+          const sender = getVideoSender();
+
+          if (!sender) {
+            throw new Error("No WebRTC video sender found.");
+          }
+
+          await sender.replaceTrack(newTrack);
+          await applyVideoSenderQuality();
+          addLog("Live camera track replaced successfully.", "success");
+        }
+
+        if (AppState.localStream) {
+          AppState.localStream.getTracks().forEach(function (track) {
+            track.stop();
+          });
+        }
+
+        AppState.selectedFacingMode = nextFacingMode;
+        await attachLocalStream(newStream);
+        await upgradeCameraQualityIfPossible();
+
+        addLog("Camera switched to " + nextFacingMode + ": " + getActualVideoText(), "success");
+        showToast("Camera switched.", "success");
+
+        if (AppState.isLive) {
+          await applyVideoSenderQuality();
+          await sendMetadata();
+        }
+
+        updateUI();
+      } catch (error) {
+        addLog("Camera switch failed: " + (error.message || error.name || "Unknown error"), "error");
+        showToast("Camera switch failed.", "error");
+        showAlert("Camera switch failed: " + (error.message || error.name || "Unknown error"), "error");
+        updateUI();
+      }
+    }
+
+    async function startLive() {
+      if (!AppState.isCameraReady || !AppState.localStream) {
+        showToast("Start camera first.", "warn");
+        showAlert("Please start the camera before going live.", "warn");
+        addLog("Go Live blocked because camera is not ready.", "warn");
+        return;
+      }
+
+      if (AppState.isLive) {
+        showToast("Livestream is already active.", "info");
+        return;
+      }
+
+      clearAlert();
+      AppState.connectionState = "connecting";
+      AppState.pendingRemoteCandidates = [];
+      updateUI();
+
+      try {
+        await refreshLocation(true);
+        await createAttendanceSession();
+        await connectSignaling();
+
+        createPeerConnection();
+
+        AppState.localStream.getTracks().forEach(function (track) {
+          AppState.peerConnection.addTrack(track, AppState.localStream);
+        });
+
+        await applyVideoSenderQuality();
+        await createAndSendOffer();
+
+        AppState.isLive = true;
+        AppState.liveStartedAt = new Date();
+        AppState.connectionState = "connecting";
+
+        startMetadataTimer();
+        startStatsTimer();
+
+        await sendMetadata();
+
+        addLog("High-quality WebRTC publishing started.", "success");
+        showToast("You are live in high quality.", "success");
+        updateUI();
+      } catch (error) {
+        addLog("Go Live failed: " + error.message, "error");
+        showToast("Go Live failed.", "error");
+        showAlert("Go Live failed: " + error.message, "error");
+
+        AppState.isLive = false;
+        AppState.connectionState = "failed";
+
+        stopStatsTimer();
+        stopMetadataTimer();
+        closeSignaling();
+        closePeerConnection();
+
+        updateUI();
+      }
+    }
+
+    async function stopLive() {
+      if (!AppState.isLive && !AppState.peerConnection && !AppState.signalingSocket) {
+        showToast("No active livestream to stop.", "info");
+        return;
+      }
+
+      const currentSessionId = AppState.sessionId;
+
+      stopMetadataTimer();
+      stopStatsTimer();
+
+      try {
+        if (AppState.signalingSocket && AppState.signalingSocket.readyState === WebSocket.OPEN) {
+          sendSignal({
+            type: "stop",
+            session_id: AppState.sessionId
+          });
+        }
+      } catch (error) {
+        addLog("Failed to send stop signal: " + error.message, "warn");
+      }
+
+      closePeerConnection();
+      closeSignaling();
+
+      AppState.isLive = false;
+      AppState.connectionState = "stopped";
+      AppState.iceConnectionState = "closed";
+      AppState.liveStartedAt = null;
+      AppState.pendingRemoteCandidates = [];
+
+      if (currentSessionId) {
+        try {
+          await stopAttendanceSession();
+        } catch (error) {
+          addLog("Backend session stop failed: " + error.message, "warn");
+        }
+      }
+
+      addLog("Livestream stopped.", "warn");
+      showToast("Live stopped.", "warn");
+      updateUI();
+    }
+
+    async function createAttendanceSession() {
+      const now = new Date();
+
+      const payload = {
+        timestamp_iso: now.toISOString(),
+        timestamp_local: now.toLocaleString(),
+        latitude: AppState.location ? AppState.location.latitude : null,
+        longitude: AppState.location ? AppState.location.longitude : null,
+        accuracy: AppState.location ? AppState.location.accuracy : null,
+        browser_user_agent: navigator.userAgent,
+        camera_label: AppState.cameraLabel,
+        requested_role: "publisher",
+        requested_video_width: VIDEO_PROFILE.width,
+        requested_video_height: VIDEO_PROFILE.height,
+        requested_fps: VIDEO_PROFILE.idealFrameRate,
+        requested_max_bitrate: VIDEO_PROFILE.maxBitrate,
+        actual_video_settings: AppState.actualVideoSettings
+      };
+
+      addLog("Creating backend attendance session...", "info");
+
+      const response = await fetch(SESSION_START_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        credentials: "same-origin",
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error("Session start HTTP " + response.status);
+      }
+
+      const data = await response.json();
+
+      if (!data || data.status !== "success" || !data.session_id) {
+        throw new Error("Invalid session start response.");
+      }
+
+      AppState.sessionId = String(data.session_id || "");
+      AppState.roomId = String(data.viewer_room_id || data.room_id || "");
+
+      addLog("Session created: " + AppState.sessionId, "success");
+      updateUI();
+
+      return data;
+    }
+
+    async function stopAttendanceSession() {
+      if (!AppState.sessionId) {
+        return;
+      }
+
+      const payload = {
+        session_id: AppState.sessionId,
+        room_id: AppState.roomId,
+        stopped_at_iso: new Date().toISOString(),
+        connection_state: AppState.connectionState,
+        ice_connection_state: AppState.iceConnectionState
+      };
+
+      const response = await fetch(SESSION_STOP_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        credentials: "same-origin",
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error("Session stop HTTP " + response.status);
+      }
+
+      addLog("Backend session stop acknowledged.", "success");
+    }
+
+    function connectSignaling() {
+      return new Promise(function (resolve, reject) {
+        closeSignaling();
+
+        addLog("Connecting to WebSocket signaling server...", "info");
+
+        let settled = false;
+        const socket = new WebSocket(SIGNALING_URL);
+        AppState.signalingSocket = socket;
+
+        const timeout = setTimeout(function () {
+          if (!settled) {
+            settled = true;
+
+            try {
+              socket.close();
+            } catch (error) {
+              console.warn(error);
+            }
+
+            reject(new Error("WebSocket signaling connection timed out."));
+          }
+        }, 12000);
+
+        socket.addEventListener("open", function () {
+          if (settled) return;
+
+          sendSignal({
+            type: "join",
+            role: "publisher",
+            session_id: AppState.sessionId,
+            room_id: AppState.roomId
+          });
+
+          settled = true;
+          clearTimeout(timeout);
+
+          addLog("WebSocket signaling connected.", "success");
+          updateUI();
+          resolve(socket);
+        });
+
+        socket.addEventListener("message", handleSignalingMessage);
+
+        socket.addEventListener("close", function () {
+          addLog("WebSocket signaling closed.", AppState.isLive ? "warn" : "info");
+
+          if (AppState.isLive) {
+            AppState.connectionState = "disconnected";
+            showToast("Signaling disconnected.", "warn");
+          }
+
+          updateUI();
+
+          if (!settled) {
+            settled = true;
+            clearTimeout(timeout);
+            reject(new Error("WebSocket signaling closed before connection."));
+          }
+        });
+
+        socket.addEventListener("error", function () {
+          addLog("WebSocket signaling error.", "error");
+
+          if (!settled) {
+            settled = true;
+            clearTimeout(timeout);
+            reject(new Error("WebSocket signaling failed."));
+          }
+
+          if (AppState.isLive) {
+            AppState.connectionState = "failed";
+            updateUI();
+          }
+        });
+      });
+    }
+
+    function closeSignaling() {
+      if (AppState.signalingSocket) {
+        try {
+          if (
+            AppState.signalingSocket.readyState === WebSocket.OPEN ||
+            AppState.signalingSocket.readyState === WebSocket.CONNECTING
+          ) {
+            AppState.signalingSocket.close();
+          }
+        } catch (error) {
+          console.warn(error);
+        }
+      }
+
+      AppState.signalingSocket = null;
+      updateUI();
+    }
+
+    function createPeerConnection() {
+      closePeerConnection();
+
+      const peerConnection = new RTCPeerConnection(RTC_CONFIG);
+      AppState.peerConnection = peerConnection;
+
+      AppState.connectionState = peerConnection.connectionState || "new";
+      AppState.iceConnectionState = peerConnection.iceConnectionState || "new";
+
+      peerConnection.addEventListener("icecandidate", function (event) {
+        if (event.candidate) {
+          sendSignal({
+            type: "ice-candidate",
+            session_id: AppState.sessionId,
+            candidate: event.candidate
+          });
+        }
+      });
+
+      peerConnection.addEventListener("connectionstatechange", function () {
+        AppState.connectionState = peerConnection.connectionState || "new";
+
+        addLog(
+          "WebRTC connection state: " + AppState.connectionState,
+          getLogTypeForState(AppState.connectionState)
+        );
+
+        if (AppState.connectionState === "connected") {
+          showToast("WebRTC connected.", "success");
+        }
+
+        if (AppState.connectionState === "failed") {
+          showToast("WebRTC connection failed.", "error");
+          showAlert("WebRTC connection failed. Check TURN/STUN, network, signaling, or media server.", "error");
+        }
+
+        updateUI();
+      });
+
+      peerConnection.addEventListener("iceconnectionstatechange", function () {
+        AppState.iceConnectionState = peerConnection.iceConnectionState || "new";
+
+        addLog(
+          "ICE state: " + AppState.iceConnectionState,
+          getLogTypeForState(AppState.iceConnectionState)
+        );
+
+        if (AppState.iceConnectionState === "failed") {
+          showToast("ICE connection failed.", "error");
+          showAlert("ICE failed. Add a TURN server for production networks, mobile networks, and strict firewalls.", "error");
+        }
+
+        updateUI();
+      });
+
+      peerConnection.addEventListener("signalingstatechange", updateUI);
+
+      peerConnection.addEventListener("negotiationneeded", function () {
+        addLog("WebRTC negotiation needed.", "info");
+      });
+
+      return peerConnection;
+    }
+
+    async function createAndSendOffer() {
+      if (!AppState.peerConnection) {
+        throw new Error("Peer connection not created.");
+      }
+
+      if (!AppState.signalingSocket || AppState.signalingSocket.readyState !== WebSocket.OPEN) {
+        throw new Error("Signaling socket is not connected.");
+      }
+
+      addLog("Creating WebRTC SDP offer...", "info");
+
+      const offer = await AppState.peerConnection.createOffer({
+        offerToReceiveAudio: false,
+        offerToReceiveVideo: false
+      });
+
+      await AppState.peerConnection.setLocalDescription(offer);
+
+      sendSignal({
+        type: "offer",
+        session_id: AppState.sessionId,
+        sdp: AppState.peerConnection.localDescription.sdp
+      });
+
+      addLog("SDP offer sent through WebSocket.", "success");
+    }
+
+    async function handleSignalingMessage(event) {
+      let message = null;
+
+      try {
+        message = JSON.parse(event.data);
+      } catch (error) {
+        addLog("Invalid signaling JSON received.", "warn");
+        return;
+      }
+
+      if (!message || !message.type) {
+        addLog("Unknown signaling message received.", "warn");
+        return;
+      }
+
+      try {
+        if (message.type === "answer") {
+          await handleRemoteAnswer(message);
+          return;
+        }
+
+        if (message.type === "ice-candidate") {
+          await handleRemoteIceCandidate(message);
+          return;
+        }
+
+        if (message.type === "stop") {
+          addLog("Stop signal received from backend/signaling.", "warn");
+          await stopLive();
+          return;
+        }
+
+        if (message.type === "error") {
+          addLog("Signaling error: " + (message.message || "Unknown error"), "error");
+          showToast(message.message || "Signaling error.", "error");
+          return;
+        }
+
+        if (message.type === "pong" || message.type === "joined" || message.type === "ack") {
+          addLog("Signaling " + message.type + " received.", "info");
+          return;
+        }
+
+        addLog("Unhandled signaling message: " + message.type, "info");
+      } catch (error) {
+        addLog("Signaling handling failed: " + error.message, "error");
+        showToast("Signaling handling failed.", "error");
+      }
+    }
+
+    function sendSignal(payload) {
+      if (!payload || typeof payload !== "object") {
+        return false;
+      }
+
+      if (!AppState.signalingSocket || AppState.signalingSocket.readyState !== WebSocket.OPEN) {
+        addLog("Cannot send signal because WebSocket is not open.", "warn");
+        return false;
+      }
+
+      const message = Object.assign({}, payload);
+
+      if (!message.session_id && AppState.sessionId) {
+        message.session_id = AppState.sessionId;
+      }
+
+      if (!message.room_id && AppState.roomId) {
+        message.room_id = AppState.roomId;
+      }
+
+      AppState.signalingSocket.send(JSON.stringify(message));
+      return true;
+    }
+
+    function refreshLocation(silent) {
+      return new Promise(function (resolve) {
+        if (!navigator.geolocation) {
+          setLocationBadge("error", "Not Supported");
+
+          if (!silent) {
+            showToast("Geolocation is not supported.", "warn");
+          }
+
+          addLog("Geolocation is not supported.", "warn");
+          resolve(null);
+          return;
+        }
+
+        setLocationBadge("connecting", "Requesting");
+
+        navigator.geolocation.getCurrentPosition(
+          function (position) {
+            const now = new Date();
+
+            AppState.location = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+              timestamp_iso: now.toISOString(),
+              timestamp_local: now.toLocaleString()
+            };
+
+            setLocationBadge("ready", "Acquired");
+
+            if (!silent) {
+              showToast("Location refreshed.", "success");
+            }
+
+            addLog(
+              "Location acquired with " + Math.round(position.coords.accuracy) + "m accuracy.",
+              "success"
+            );
+
+            updateUI();
+            resolve(AppState.location);
+          },
+          function (error) {
+            const messageMap = {
+              1: "Location permission denied.",
+              2: "Location unavailable.",
+              3: "Location request timed out."
+            };
+
+            const message = messageMap[error.code] || "Location error.";
+
+            setLocationBadge("error", "Denied");
+
+            if (!silent) {
+              showToast(message, "warn");
+              showAlert(message + " Livestream can continue, but location metadata will be empty.", "warn");
+            }
+
+            addLog(message, "warn");
+            updateUI();
+            resolve(null);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 12000,
+            maximumAge: 30000
+          }
+        );
+      });
+    }
+
+    async function sendMetadata() {
+      if (!AppState.sessionId) {
+        addLog("Metadata skipped because session ID is missing.", "warn");
+        return;
+      }
+
+      const now = new Date();
+
+      const payload = {
+        session_id: AppState.sessionId,
+        room_id: AppState.roomId,
+
+        latitude: AppState.location ? AppState.location.latitude : null,
+        longitude: AppState.location ? AppState.location.longitude : null,
+        accuracy: AppState.location ? AppState.location.accuracy : null,
+
+        timestamp_iso: now.toISOString(),
+        timestamp_local: now.toLocaleString(),
+
+        browser_user_agent: navigator.userAgent,
+        camera_label: AppState.cameraLabel,
+        facing_mode: AppState.selectedFacingMode,
+
+        requested_video_width: VIDEO_PROFILE.width,
+        requested_video_height: VIDEO_PROFILE.height,
+        requested_fps: VIDEO_PROFILE.idealFrameRate,
+        requested_max_bitrate: VIDEO_PROFILE.maxBitrate,
+        actual_video_settings: AppState.actualVideoSettings,
+
+        connection_state: AppState.connectionState,
+        ice_connection_state: AppState.iceConnectionState,
+        signaling_state: AppState.peerConnection ? AppState.peerConnection.signalingState : "closed",
+        socket_state: getSocketState(),
+
+        current_bitrate_kbps: AppState.stats.bitrateKbps,
+        packets_sent: AppState.stats.packetsSent,
+        frames_encoded: AppState.stats.framesEncoded,
+
+        is_live: AppState.isLive
+      };
+
+      const response = await fetch(SESSION_METADATA_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        credentials: "same-origin",
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error("Metadata HTTP " + response.status);
+      }
+
+      AppState.lastMetadataSentAt = new Date();
+
+      addLog("Metadata sent to backend.", "success");
+      updateUI();
+    }
+
+    async function resetSession() {
+      if (AppState.isLive || AppState.peerConnection || AppState.signalingSocket) {
+        await stopLive();
+      }
+
+      if (AppState.localStream) {
+        AppState.localStream.getTracks().forEach(function (track) {
+          track.stop();
+        });
+      }
+
+      AppState.localStream = null;
+      AppState.peerConnection = null;
+      AppState.signalingSocket = null;
+      AppState.isCameraReady = false;
+      AppState.isLive = false;
+      AppState.sessionId = "";
+      AppState.roomId = "";
+      AppState.selectedFacingMode = "user";
+      AppState.location = null;
+      AppState.connectionState = "idle";
+      AppState.iceConnectionState = "new";
+      AppState.cameraLabel = "";
+      AppState.liveStartedAt = null;
+      AppState.lastMetadataSentAt = null;
+      AppState.metadataTimer = null;
+      AppState.actualVideoSettings = null;
+      AppState.pendingRemoteCandidates = [];
+
+      AppState.stats.previousBytesSent = 0;
+      AppState.stats.previousStatsAt = 0;
+      AppState.stats.bitrateKbps = 0;
+      AppState.stats.packetsSent = 0;
+      AppState.stats.framesEncoded = 0;
+
+      DOM.localVideo.srcObject = null;
+      DOM.videoIdleOverlay.classList.remove("hidden");
+      DOM.activityLog.innerHTML = '<div class="log-empty">No activity yet.</div>';
+
+      clearAlert();
+      setLocationBadge("idle", "Pending");
+
+      addLog("Session reset.", "info");
+      showToast("Session reset.", "info");
+      updateUI();
+    }
+
+    function updateUI() {
+      const cameraStatus = getCameraStatusText();
+      const topState = getTopState();
+
+      DOM.topStatePill.className = "state-pill " + topState.className;
+      DOM.topStateText.textContent = topState.text;
+
+      DOM.cameraStatusText.textContent = cameraStatus.text;
+      DOM.cameraLabelText.textContent = AppState.cameraLabel || "No camera selected";
+
+      DOM.cameraBadge.className = "badge " + cameraStatus.className;
+      DOM.cameraBadge.textContent = cameraStatus.text;
+
+      DOM.cameraMiniDot.className = "mini-dot " + cameraStatus.dotClass;
+
+      DOM.liveWatermark.classList.toggle("visible", AppState.isLive);
+      DOM.videoIdleOverlay.classList.toggle("hidden", Boolean(AppState.localStream));
+      DOM.localVideo.classList.toggle("back-camera", AppState.selectedFacingMode === "environment");
+
+      const canStartCamera = !AppState.isCameraReady;
+      const canGoLive = AppState.isCameraReady && !AppState.isLive;
+      const canStopLive = AppState.isLive || Boolean(AppState.peerConnection);
+      const canSwitchCamera = AppState.isCameraReady;
+
+      DOM.btnStartCamera.disabled = !canStartCamera;
+      DOM.btnStartCamera2.disabled = !canStartCamera;
+
+      DOM.btnGoLive.disabled = !canGoLive;
+      DOM.btnGoLive2.disabled = !canGoLive;
+
+      DOM.btnStopLive.disabled = !canStopLive;
+      DOM.btnStopLive2.disabled = !canStopLive;
+
+      DOM.btnSwitchCamera.disabled = !canSwitchCamera;
+
+      DOM.sessionBadge.className = "badge " + (AppState.isLive ? "live" : AppState.sessionId ? "ready" : "idle");
+      DOM.sessionBadge.textContent = AppState.isLive ? "Live" : AppState.sessionId ? "Created" : "Idle";
+
+      DOM.sessionIdText.textContent = AppState.sessionId || "—";
+      DOM.roomIdText.textContent = AppState.roomId || "—";
+      DOM.liveStartedText.textContent = AppState.liveStartedAt ? formatDateTime(AppState.liveStartedAt) : "—";
+      DOM.lastMetadataText.textContent = AppState.lastMetadataSentAt ? formatDateTime(AppState.lastMetadataSentAt) : "—";
+      DOM.facingModeText.textContent = AppState.selectedFacingMode;
+
+      DOM.requestedQualityText.textContent =
+        VIDEO_PROFILE.width + "×" +
+        VIDEO_PROFILE.height + " / " +
+        VIDEO_PROFILE.idealFrameRate + " FPS";
+
+      DOM.actualVideoText.textContent = getActualVideoText();
+      DOM.targetBitrateText.textContent = VIDEO_PROFILE.maxBitrateKbps + " kbps";
+      DOM.estimateDataText.textContent = VIDEO_PROFILE.estimatedMBPerMinute + " MB/min";
+
+      if (AppState.location) {
+        DOM.latitudeText.textContent = Number(AppState.location.latitude).toFixed(6);
+        DOM.longitudeText.textContent = Number(AppState.location.longitude).toFixed(6);
+        DOM.accuracyText.textContent = Math.round(AppState.location.accuracy) + " m";
+        DOM.locationTimeText.textContent = AppState.location.timestamp_local || "—";
+      } else {
+        DOM.latitudeText.textContent = "—";
+        DOM.longitudeText.textContent = "—";
+        DOM.accuracyText.textContent = "—";
+        DOM.locationTimeText.textContent = "—";
+      }
+
+      DOM.connectionStateText.textContent = AppState.connectionState;
+      DOM.connectionStateText.className = "info-value " + getValueClassForState(AppState.connectionState);
+
+      DOM.iceStateText.textContent = AppState.iceConnectionState;
+      DOM.iceStateText.className = "info-value " + getValueClassForState(AppState.iceConnectionState);
+
+      DOM.signalingStateText.textContent = AppState.peerConnection
+        ? AppState.peerConnection.signalingState
+        : "closed";
+
+      DOM.socketStateText.textContent = getSocketState();
+
+      DOM.webrtcBadge.className = "badge " + getBadgeClassForState(AppState.connectionState);
+      DOM.webrtcBadge.textContent = AppState.connectionState;
+
+      DOM.qualityBadge.className = "badge " + getQualityClass();
+      DOM.qualityBadge.textContent = getQualityText();
+
+      DOM.bitrateText.textContent = String(AppState.stats.bitrateKbps || 0);
+      DOM.packetsText.textContent = String(AppState.stats.packetsSent || 0);
+      DOM.framesText.textContent = String(AppState.stats.framesEncoded || 0);
+      DOM.uptimeText.textContent = getLiveUptimeText();
+    }
+
+    function addLog(message, type) {
+      const empty = DOM.activityLog.querySelector(".log-empty");
+
+      if (empty) {
+        empty.remove();
+      }
+
+      const safeType = ["info", "success", "warn", "error"].includes(type) ? type : "info";
+      const item = document.createElement("div");
+      item.className = "log-item";
+
+      item.innerHTML = `
+        <span class="log-dot ${safeType}"></span>
+        <span class="log-time">${formatTime(new Date())}</span>
+        <span>${escapeHtml(message)}</span>
+      `;
+
+      DOM.activityLog.prepend(item);
+
+      const items = DOM.activityLog.querySelectorAll(".log-item");
+
+      if (items.length > 40) {
+        items[items.length - 1].remove();
+      }
+    }
+
+    function showToast(message, type) {
+      const safeType = ["info", "success", "warn", "error"].includes(type) ? type : "info";
+      const toast = document.createElement("div");
+      toast.className = "toast " + safeType;
+
+      const iconMap = {
+        info: "ℹ",
+        success: "✓",
+        warn: "⚠",
+        error: "✕"
+      };
+
+      toast.innerHTML = `
+        <span>${iconMap[safeType]}</span>
+        <span>${escapeHtml(message)}</span>
+      `;
+
+      DOM.toastContainer.appendChild(toast);
+
+      setTimeout(function () {
+        toast.classList.add("out");
+        toast.addEventListener("animationend", function () {
+          toast.remove();
+        });
+      }, 3400);
+    }
+
+    function showAlert(message, type) {
+      const safeType = ["info", "warn", "error"].includes(type) ? type : "info";
+
+      DOM.alertBox.className = "alert visible " + safeType;
+      DOM.alertBox.innerHTML = `
+        <strong>${safeType === "error" ? "Error" : safeType === "warn" ? "Warning" : "Info"}:</strong>
+        <span>${escapeHtml(message)}</span>
+      `;
+    }
+
+    function clearAlert() {
+      DOM.alertBox.className = "alert";
+      DOM.alertBox.innerHTML = "";
+    }
+
+    async function attachLocalStream(stream) {
+      AppState.localStream = stream;
+
+      const videoTrack = stream.getVideoTracks()[0];
+
+      AppState.cameraLabel = videoTrack ? (videoTrack.label || "Camera") : "Camera";
+      AppState.actualVideoSettings = videoTrack && videoTrack.getSettings ? videoTrack.getSettings() : null;
+
+      DOM.localVideo.setAttribute("playsinline", "");
+      DOM.localVideo.setAttribute("webkit-playsinline", "");
+      DOM.localVideo.muted = true;
+      DOM.localVideo.srcObject = stream;
+
+      try {
+        await DOM.localVideo.play();
+      } catch (error) {
+        addLog("Video preview autoplay warning: " + (error.message || error.name), "warn");
+      }
+
+      DOM.videoIdleOverlay.classList.add("hidden");
+
+      addLog("Actual camera quality: " + getActualVideoText(), "info");
+      updateUI();
+    }
+
+    function buildCameraConstraints(facingMode, mode) {
+      const safeMode = mode || "high";
+
+      if (safeMode === "basic") {
+        return {
+          video: true,
+          audio: false
+        };
+      }
+
+      if (safeMode === "permission") {
+        return {
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 24, max: 30 }
+          },
+          audio: false
+        };
+      }
+
+      return {
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: VIDEO_PROFILE.width },
+          height: { ideal: VIDEO_PROFILE.height },
+          frameRate: {
+            ideal: VIDEO_PROFILE.idealFrameRate,
+            max: VIDEO_PROFILE.maxFrameRate
+          }
+        },
+        audio: false
+      };
+    }
+
+    async function requestCameraStreamWithFallback(facingMode) {
+      const attempts = [
+        {
+          label: "mobile-safe 720p permission request",
+          constraints: buildCameraConstraints(facingMode, "permission")
+        },
+        {
+          label: "high-quality 1080p request",
+          constraints: buildCameraConstraints(facingMode, "high")
+        },
+        {
+          label: "basic browser-selected camera request",
+          constraints: buildCameraConstraints(facingMode, "basic")
+        }
+      ];
+
+      let lastError = null;
+
+      for (let index = 0; index < attempts.length; index += 1) {
+        const attempt = attempts[index];
+
+        try {
+          addLog("Trying " + attempt.label + "...", "info");
+          return await navigator.mediaDevices.getUserMedia(attempt.constraints);
+        } catch (error) {
+          lastError = error;
+
+          if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError" || error.name === "SecurityError") {
+            throw error;
+          }
+
+          addLog(attempt.label + " failed: " + (error.message || error.name || "Unknown error"), "warn");
+        }
+      }
+
+      throw lastError || new Error("Camera request failed.");
+    }
+
+    async function upgradeCameraQualityIfPossible() {
+      if (!AppState.localStream) {
+        return;
+      }
+
+      const videoTrack = AppState.localStream.getVideoTracks()[0];
+
+      if (!videoTrack) {
+        return;
+      }
+
+      if (typeof videoTrack.applyConstraints !== "function") {
+        AppState.actualVideoSettings = videoTrack.getSettings ? videoTrack.getSettings() : null;
+        updateUI();
+        return;
+      }
+
+      try {
+        await videoTrack.applyConstraints({
+          width: { ideal: VIDEO_PROFILE.width },
+          height: { ideal: VIDEO_PROFILE.height },
+          frameRate: {
+            ideal: VIDEO_PROFILE.idealFrameRate,
+            max: VIDEO_PROFILE.maxFrameRate
+          }
+        });
+
+        AppState.actualVideoSettings = videoTrack.getSettings ? videoTrack.getSettings() : null;
+        addLog("Camera upgraded to best available face-detection quality: " + getActualVideoText(), "success");
+      } catch (error) {
+        AppState.actualVideoSettings = videoTrack.getSettings ? videoTrack.getSettings() : null;
+        addLog(
+          "Full 1080p upgrade is not supported on this device. Continuing with available quality: " +
+          getActualVideoText(),
+          "warn"
+        );
+      }
+
+      updateUI();
+    }
+
+    async function getCameraPermissionState() {
+      if (!navigator.permissions || typeof navigator.permissions.query !== "function") {
+        return "unknown";
+      }
+
+      try {
+        const status = await navigator.permissions.query({ name: "camera" });
+        return status && status.state ? status.state : "unknown";
+      } catch (error) {
+        return "unknown";
+      }
+    }
+
+    function createNamedError(name, message) {
+      const error = new Error(message);
+      error.name = name;
+      return error;
+    }
+
+    async function handleCameraError(error) {
+      const errorName = error && error.name ? error.name : "Error";
+      const errorMessage = error && error.message ? error.message : "Unknown error";
+      let message = "Camera error: " + errorMessage;
+
+      if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
+        message =
+          "Camera permission denied or blocked. On mobile, open browser Site settings, allow Camera for this website, close other camera apps, then reload. The page must be opened using HTTPS or localhost.";
+        AppState.connectionState = "permission-denied";
+      } else if (errorName === "SecurityError") {
+        message =
+          "Camera blocked by browser security. Use HTTPS, avoid opening from file://, and if embedded in an iframe add allow=\"camera; microphone; geolocation\" plus a correct Permissions-Policy header.";
+        AppState.connectionState = "permission-denied";
+      } else if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+        message = "No camera device found on this device.";
+        AppState.connectionState = "camera-not-found";
+      } else if (errorName === "NotReadableError" || errorName === "TrackStartError") {
+        message = "Camera is already being used by another app, browser tab, or system camera service.";
+        AppState.connectionState = "camera-busy";
+      } else if (errorName === "OverconstrainedError") {
+        message = "The requested camera quality is not supported on this device. Try switching camera or lowering device/browser restrictions.";
+        AppState.connectionState = "failed";
+      } else if (errorName === "AbortError") {
+        message = "Camera startup was interrupted by the browser or device. Close other camera apps and try again.";
+        AppState.connectionState = "failed";
+      } else {
+        AppState.connectionState = "failed";
+      }
+
+      AppState.isCameraReady = false;
+      AppState.cameraLabel = "";
+      AppState.actualVideoSettings = null;
+
+      showAlert(message, "error");
+      showToast("Camera failed.", "error");
+      addLog(message, "error");
+      updateUI();
+    }
+
+    async function applyVideoSenderQuality() {
+      if (!AppState.peerConnection) {
+        return;
+      }
+
+      const sender = getVideoSender();
+
+      if (!sender) {
+        addLog("Video sender not found. Could not apply quality profile.", "warn");
+        return;
+      }
+
+      const params = sender.getParameters();
+
+      if (!params.encodings || !params.encodings.length) {
+        params.encodings = [{}];
+      }
+
+      params.encodings[0].maxBitrate = VIDEO_PROFILE.maxBitrate;
+      params.encodings[0].maxFramerate = VIDEO_PROFILE.idealFrameRate;
+      params.encodings[0].scaleResolutionDownBy = 1;
+
+      try {
+        await sender.setParameters(params);
+        addLog(
+          "High-quality WebRTC sender applied for face detection: 1080p / " +
+          VIDEO_PROFILE.idealFrameRate +
+          " FPS / " +
+          VIDEO_PROFILE.maxBitrateKbps +
+          " kbps.",
+          "success"
+        );
+      } catch (error) {
+        addLog("Could not apply WebRTC sender quality: " + error.message, "warn");
+      }
+    }
+
+    function getVideoSender() {
+      if (!AppState.peerConnection) {
+        return null;
+      }
+
+      return AppState.peerConnection
+        .getSenders()
+        .find(function (sender) {
+          return sender.track && sender.track.kind === "video";
+        }) || null;
+    }
+
+    async function handleRemoteAnswer(message) {
+      if (!AppState.peerConnection) {
+        addLog("Answer received but peer connection is missing.", "warn");
+        return;
+      }
+
+      if (!message.sdp) {
+        addLog("Answer message missing SDP.", "warn");
+        return;
+      }
+
+      if (AppState.peerConnection.signalingState !== "have-local-offer") {
+        addLog(
+          "Answer ignored because signaling state is " + AppState.peerConnection.signalingState + ".",
+          "warn"
+        );
+        return;
+      }
+
+      await AppState.peerConnection.setRemoteDescription({
+        type: "answer",
+        sdp: message.sdp
+      });
+
+      addLog("Remote SDP answer applied.", "success");
+
+      await flushPendingRemoteCandidates();
+      updateUI();
+    }
+
+    async function handleRemoteIceCandidate(message) {
+      if (!AppState.peerConnection) {
+        addLog("ICE candidate received but peer connection is missing.", "warn");
+        return;
+      }
+
+      if (!message.candidate) {
+        return;
+      }
+
+      if (!AppState.peerConnection.remoteDescription) {
+        AppState.pendingRemoteCandidates.push(message.candidate);
+        addLog("Remote ICE candidate queued until answer is applied.", "info");
+        return;
+      }
+
+      await AppState.peerConnection.addIceCandidate(message.candidate);
+      addLog("Remote ICE candidate added.", "info");
+      updateUI();
+    }
+
+    async function flushPendingRemoteCandidates() {
+      if (!AppState.peerConnection || !AppState.peerConnection.remoteDescription) {
+        return;
+      }
+
+      while (AppState.pendingRemoteCandidates.length > 0) {
+        const candidate = AppState.pendingRemoteCandidates.shift();
+
+        try {
+          await AppState.peerConnection.addIceCandidate(candidate);
+          addLog("Queued ICE candidate added.", "info");
+        } catch (error) {
+          addLog("Queued ICE candidate failed: " + error.message, "warn");
+        }
+      }
+    }
+
+    function startMetadataTimer() {
+      stopMetadataTimer();
+
+      AppState.metadataTimer = setInterval(async function () {
+        if (!AppState.isLive) {
+          return;
+        }
+
+        try {
+          await refreshLocation(true);
+          await sendMetadata();
+        } catch (error) {
+          addLog("Metadata refresh failed: " + error.message, "warn");
+        }
+      }, 30000);
+    }
+
+    function stopMetadataTimer() {
+      if (AppState.metadataTimer) {
+        clearInterval(AppState.metadataTimer);
+      }
+
+      AppState.metadataTimer = null;
+    }
+
+    function startStatsTimer() {
+      stopStatsTimer();
+
+      AppState.stats.previousBytesSent = 0;
+      AppState.stats.previousStatsAt = 0;
+      AppState.stats.bitrateKbps = 0;
+      AppState.stats.packetsSent = 0;
+      AppState.stats.framesEncoded = 0;
+
+      AppState.stats.timer = setInterval(collectConnectionStats, 1000);
+    }
+
+    function stopStatsTimer() {
+      if (AppState.stats.timer) {
+        clearInterval(AppState.stats.timer);
+      }
+
+      AppState.stats.timer = null;
+      AppState.stats.previousBytesSent = 0;
+      AppState.stats.previousStatsAt = 0;
+      AppState.stats.bitrateKbps = 0;
+      AppState.stats.packetsSent = 0;
+      AppState.stats.framesEncoded = 0;
+    }
+
+    async function collectConnectionStats() {
+      if (!AppState.peerConnection || !AppState.isLive) {
+        updateUI();
+        return;
+      }
+
+      try {
+        const stats = await AppState.peerConnection.getStats();
+        let videoOutbound = null;
+
+        stats.forEach(function (report) {
+          if (
+            report.type === "outbound-rtp" &&
+            (report.kind === "video" || report.mediaType === "video") &&
+            !report.isRemote
+          ) {
+            videoOutbound = report;
+          }
+        });
+
+        if (!videoOutbound) {
+          updateUI();
+          return;
+        }
+
+        const now = videoOutbound.timestamp || performance.now();
+        const bytesSent = videoOutbound.bytesSent || 0;
+
+        if (AppState.stats.previousStatsAt && AppState.stats.previousBytesSent <= bytesSent) {
+          const elapsedMs = now - AppState.stats.previousStatsAt;
+          const byteDiff = bytesSent - AppState.stats.previousBytesSent;
+
+          if (elapsedMs > 0) {
+            AppState.stats.bitrateKbps = Math.max(0, Math.round((byteDiff * 8) / elapsedMs));
+          }
+        }
+
+        AppState.stats.previousStatsAt = now;
+        AppState.stats.previousBytesSent = bytesSent;
+        AppState.stats.packetsSent = videoOutbound.packetsSent || 0;
+        AppState.stats.framesEncoded = videoOutbound.framesEncoded || 0;
+
+        updateUI();
+      } catch (error) {
+        addLog("Stats read failed: " + error.message, "warn");
+      }
+    }
+
+    function closePeerConnection() {
+      if (AppState.peerConnection) {
+        try {
+          AppState.peerConnection.close();
+        } catch (error) {
+          console.warn(error);
+        }
+      }
+
+      AppState.peerConnection = null;
+      updateUI();
+    }
+
+    function setLocationBadge(className, text) {
+      DOM.locationBadge.className = "badge " + className;
+      DOM.locationBadge.textContent = text;
+    }
+
+    function updateClock() {
+      DOM.clockText.textContent = formatTime(new Date());
+
+      if (AppState.isLive) {
+        DOM.uptimeText.textContent = getLiveUptimeText();
+      }
+    }
+
+    function getSocketState() {
+      if (!AppState.signalingSocket) {
+        return "closed";
+      }
+
+      const map = {
+        0: "connecting",
+        1: "open",
+        2: "closing",
+        3: "closed"
+      };
+
+      return map[AppState.signalingSocket.readyState] || "unknown";
+    }
+
+    function getTopState() {
+      if (AppState.isLive && AppState.connectionState === "connected") {
+        return { className: "live", text: "Live" };
+      }
+
+      if (AppState.isLive || AppState.connectionState === "connecting") {
+        return { className: "connecting", text: "Connecting" };
+      }
+
+      if (AppState.isCameraReady) {
+        return { className: "ready", text: "Camera Ready" };
+      }
+
+      if (
+        AppState.connectionState === "permission-denied" ||
+        AppState.connectionState === "failed" ||
+        AppState.connectionState === "camera-not-found" ||
+        AppState.connectionState === "camera-busy"
+      ) {
+        return { className: "error", text: "Permission Denied" };
+      }
+
+      if (AppState.connectionState === "stopped") {
+        return { className: "", text: "Stopped" };
+      }
+
+      return { className: "", text: "Camera Off" };
+    }
+
+    function getCameraStatusText() {
+      if (AppState.isLive && AppState.connectionState === "connected") {
+        return { text: "Live", className: "live", dotClass: "live" };
+      }
+
+      if (AppState.isLive || AppState.connectionState === "connecting") {
+        return { text: "Connecting", className: "connecting", dotClass: "warn" };
+      }
+
+      if (AppState.isCameraReady) {
+        return { text: "Camera Ready", className: "ready", dotClass: "ready" };
+      }
+
+      if (AppState.connectionState === "permission-denied") {
+        return { text: "Permission Denied", className: "error", dotClass: "warn" };
+      }
+
+      if (AppState.connectionState === "stopped") {
+        return { text: "Stopped", className: "idle", dotClass: "" };
+      }
+
+      return { text: "Camera Off", className: "idle", dotClass: "" };
+    }
+
+    function getBadgeClassForState(state) {
+      if (state === "connected") return "ready";
+      if (state === "connecting" || state === "new" || state === "checking") return "connecting";
+      if (state === "failed" || state === "disconnected" || state === "permission-denied") return "error";
+      if (state === "closed" || state === "stopped") return "idle";
+      return "idle";
+    }
+
+    function getValueClassForState(state) {
+      if (state === "connected" || state === "completed") return "green";
+      if (state === "connecting" || state === "checking" || state === "new") return "amber";
+      if (state === "failed" || state === "disconnected" || state === "permission-denied") return "red";
+      return "muted";
+    }
+
+    function getLogTypeForState(state) {
+      if (state === "connected" || state === "completed") return "success";
+      if (state === "failed" || state === "disconnected") return "error";
+      if (state === "connecting" || state === "checking") return "info";
+      return "info";
+    }
+
+    function getQualityClass() {
+      if (!AppState.isLive || AppState.connectionState !== "connected") return "idle";
+      if (AppState.stats.bitrateKbps >= 2200) return "ready";
+      if (AppState.stats.bitrateKbps >= 900) return "connecting";
+      return "error";
+    }
+
+    function getQualityText() {
+      if (!AppState.isLive) return "Waiting";
+      if (AppState.connectionState !== "connected") return "Connecting";
+      if (AppState.stats.bitrateKbps >= 2200) return "Excellent";
+      if (AppState.stats.bitrateKbps >= 900) return "Fair";
+      return "Low";
+    }
+
+    function getLiveUptimeText() {
+      if (!AppState.isLive || !AppState.liveStartedAt) {
+        return "0s";
+      }
+
+      const seconds = Math.floor((Date.now() - AppState.liveStartedAt.getTime()) / 1000);
+
+      if (seconds < 60) {
+        return seconds + "s";
+      }
+
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+
+      if (minutes < 60) {
+        return minutes + "m " + remainingSeconds + "s";
+      }
+
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+
+      return hours + "h " + remainingMinutes + "m";
+    }
+
+    function getActualVideoText() {
+      const settings = AppState.actualVideoSettings;
+
+      if (!settings) {
+        return "—";
+      }
+
+      const width = settings.width || "?";
+      const height = settings.height || "?";
+      const frameRate = settings.frameRate ? Math.round(settings.frameRate) : "?";
+
+      return width + "×" + height + " / " + frameRate + " FPS";
+    }
+
+    function formatTime(date) {
+      return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
+
+    function formatDateTime(date) {
+      return date.toLocaleString([], {
+        dateStyle: "medium",
+        timeStyle: "medium"
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    document.addEventListener("DOMContentLoaded", init);
+  </script>
+</body>
+</html>
